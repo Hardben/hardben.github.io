@@ -1,48 +1,1992 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Hardben 的科技空间</title>
-    <style>
-        body, html {
-            margin: 0;
-            padding: 0;
-            width: 100%;
-            height: 100%;
-            overflow: hidden; /* 防止出现滚动条 */
-            background-color: #000; /* 科技感深色背景 */
-        }
-        
-        /* 让 3D 模型撑满全屏 */
-        spline-viewer {
-            width: 100vw;
-            height: 100vh;
-        }
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>3D Tile Builder</title>
+  <style>
+    *{margin:0;padding:0;box-sizing:border-box;}
+    html,body{background:#080810;min-height:100vh;font-family:system-ui,sans-serif;}
+    body{display:flex;flex-direction:column;align-items:center;padding:24px 0 48px;}
 
-        /* 浮动在 3D 模型之上的文字 */
-        .content {
-            position: absolute;
-            top: 50%;
-            left: 10%;
-            transform: translateY(-50%);
-            color: #00d4ff; /* 霓虹蓝 */
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            text-shadow: 0 0 10px rgba(0, 212, 255, 0.8);
-            pointer-events: none; /* 让鼠标穿透文字去操作 3D 模型 */
-        }
-    </style>
+    /* ── Page wrapper ── */
+    #page-wrap{width:90vw;display:flex;flex-direction:column;gap:0;}
+
+    /* ══════════════════════════════════════════════════════
+       APP BORDER — tech / futuristic quadrilateral frame
+       Palette: #0099dd (cyan-blue) · #5A0090 (deep violet)
+       Style: dark, understated, high-tech corner brackets
+       + subtle animated scan line + corner accent dots
+    ══════════════════════════════════════════════════════ */
+    #app-border{
+      position:relative;
+      display:flex;flex-direction:row;
+      background:#080810;
+      /* 1px gradient border */
+      border:1px solid transparent;
+      background-clip:padding-box;
+      outline:1px solid rgba(0,153,221,0.12);
+      box-shadow:
+        0 0 0 1px rgba(90,0,144,0.10),
+        0 0 32px rgba(0,153,221,0.06),
+        inset 0 0 60px rgba(90,0,144,0.03);
+    }
+    /* Corner bracket — top-left */
+    #app-border::before{
+      content:'';position:absolute;
+      top:-1px;left:-1px;
+      width:28px;height:28px;
+      border-top:2px solid #004466;
+      border-left:2px solid #004466;
+      box-shadow:0 0 8px rgba(0,80,120,0.25);
+      pointer-events:none;z-index:20;
+    }
+    /* Corner bracket — bottom-right */
+    #app-border::after{
+      content:'';position:absolute;
+      bottom:-1px;right:-1px;
+      width:28px;height:28px;
+      border-bottom:2px solid #004466;
+      border-right:2px solid #004466;
+      box-shadow:0 0 8px rgba(0,80,120,0.25);
+      pointer-events:none;z-index:20;
+    }
+    /* Corner bracket — top-right */
+    #app-corner-tr{
+      position:absolute;top:-1px;right:-1px;
+      width:28px;height:28px;
+      border-top:2px solid #004466;
+      border-right:2px solid #004466;
+      box-shadow:0 0 8px rgba(0,80,120,0.25);
+      pointer-events:none;z-index:20;
+    }
+    /* Corner bracket — bottom-left */
+    #app-corner-bl{
+      position:absolute;bottom:-1px;left:-1px;
+      width:28px;height:28px;
+      border-bottom:2px solid #004466;
+      border-left:2px solid #004466;
+      box-shadow:0 0 8px rgba(0,80,120,0.25);
+      pointer-events:none;z-index:20;
+    }
+    /* Animated horizontal scan line */
+    #app-scan{
+      position:absolute;left:0;right:0;height:1px;
+      background:linear-gradient(90deg,transparent 0%,rgba(0,153,221,0.18) 30%,rgba(90,0,144,0.18) 70%,transparent 100%);
+      pointer-events:none;z-index:19;
+      animation:appScan 6s ease-in-out infinite;
+    }
+    @keyframes appScan{
+      0%  {top:0%;   opacity:0;}
+      5%  {opacity:1;}
+      95% {opacity:0.6;}
+      100%{top:100%; opacity:0;}
+    }
+    /* Top edge label — removed */
+    #viewer{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;flex:1;min-width:0;background:#080810;padding:16px 8px 44px;}
+
+    /* ── Panel toggle button (neon power style) ── */
+    #panelToggle{
+      position:absolute;top:14px;right:14px;
+      width:28px;height:28px;
+      background:transparent;border:none;padding:0;
+      cursor:pointer;z-index:100;
+      border-radius:5px;
+    }
+    #panelToggle .neon-button{
+      position:relative;
+      width:28px;height:28px;
+      border-radius:3px;
+      display:flex;justify-content:center;align-items:center;
+      transition:all 0.3s ease;
+    }
+    #panelToggle .neon-button::before{
+      content:'';position:absolute;
+      width:100%;height:100%;border-radius:3px;
+      background:linear-gradient(45deg,#0099dd,#5A0090,#0099dd);
+      opacity:0.35;filter:blur(3px);
+      animation:ntGlow 3s ease-in-out infinite;z-index:-2;
+    }
+    #panelToggle .neon-button::after{
+      content:'';position:absolute;
+      width:92%;height:92%;border-radius:2px;
+      border:1px solid transparent;
+      background:linear-gradient(45deg,#0099dd,#5A0090,#0099dd) border-box;
+      -webkit-mask:linear-gradient(#fff 0 0) padding-box,linear-gradient(#fff 0 0);
+      mask:linear-gradient(#fff 0 0) padding-box,linear-gradient(#fff 0 0);
+      -webkit-mask-composite:xor;mask-composite:exclude;
+      opacity:0.45;
+    }
+    #panelToggle .inner-ring{
+      position:absolute;width:88%;height:88%;
+      border-radius:2px;
+      border:1px solid rgba(90,0,144,0.2);
+      box-shadow:0 0 2px rgba(90,0,144,0.1);
+    }
+    #panelToggle .tech-pattern{
+      position:absolute;width:95%;height:95%;border-radius:2px;
+      background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(90,0,144,0.06) 2px,rgba(90,0,144,0.06) 4px);
+      pointer-events:none;
+    }
+    #panelToggle .power-emoji{
+      font-size:14px;
+      background:linear-gradient(45deg,#0099dd,#5A0090);
+      -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
+      filter:drop-shadow(0 0 2px #0099dd) drop-shadow(0 0 3px #5A0090);
+      animation:ntPulse 2s ease-in-out infinite, ntSpin 8s linear infinite;
+    }
+    #panelToggle:hover .neon-button{transform:scale(1.03);}
+    #panelToggle:hover .neon-button::before{opacity:0.55;}
+    #panelToggle:hover .neon-button::after{opacity:0.65;}
+    #panelToggle:hover .power-emoji{animation:ntPulse 0.8s ease-in-out infinite, ntSpin 8s linear infinite;}
+    #panelToggle:active .neon-button{transform:scale(0.97);}
+    #panelToggle.open .power-emoji{filter:drop-shadow(0 0 3px #0099dd) drop-shadow(0 0 5px #5A0090);}
+    @keyframes ntGlow{
+      0%,100%{opacity:0.25;transform:scale(1);}
+      50%{opacity:0.45;transform:scale(1.03);}
+    }
+    @keyframes ntSpin{
+      0%{transform:rotate(0deg);}100%{transform:rotate(360deg);}
+    }
+    @keyframes ntPulse{
+      0%,100%{filter:drop-shadow(0 0 6px #0099dd) drop-shadow(0 0 12px #5A0090);transform:scale(1);}
+      50%{filter:drop-shadow(0 0 10px #0099dd) drop-shadow(0 0 22px #5A0090);transform:scale(1.05);}
+    }
+
+    /* ── Panel ── */
+    #panel{
+      width:260px;min-width:220px;max-height:100%;overflow-y:auto;overflow-x:hidden;
+      background:#0e0e1a;border-left:1px solid #1e1e35;
+      display:none;
+      flex-direction:column;
+    }
+    #panel.open{display:flex;}
+
+    /* ── Tab bar ── */
+    .tab-bar{
+      display:flex;border-bottom:1px solid #1e1e35;
+      flex-shrink:0;
+    }
+    .tab-btn{
+      flex:1;padding:9px 0;
+      background:transparent;border:none;
+      color:#4a5080;font:500 10px sans-serif;
+      letter-spacing:.1em;text-transform:uppercase;
+      cursor:pointer;transition:color .15s,border-bottom .15s;
+      border-bottom:2px solid transparent;margin-bottom:-1px;
+    }
+    .tab-btn:hover{color:#7788cc;}
+    .tab-btn.active{color:#aabeff;border-bottom:2px solid #4466cc;}
+
+    /* ── Tab panes ── */
+    .tab-pane{display:none;padding:14px 14px 24px;overflow-y:auto;overflow-x:hidden;flex:1;}
+    .tab-pane.active{display:block;}
+
+    /* ── Existing control styles (unchanged) ── */
+    #panel::-webkit-scrollbar{width:4px;}
+    #panel::-webkit-scrollbar-thumb{background:#2a2a45;border-radius:4px;}
+    .section-title{font:500 10px sans-serif;letter-spacing:.1em;text-transform:uppercase;color:#4a5080;margin:18px 0 8px;border-bottom:1px solid #1e1e35;padding-bottom:5px;}
+    .section-title:first-child{margin-top:4px;}
+    .row{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;gap:6px;}
+    .row label{font:12px sans-serif;color:#8890b8;flex:0 0 auto;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:90px;}
+    input[type=range]{flex:1;min-width:0;accent-color:#4466ee;height:3px;}
+    .val{font:11px/1 monospace;color:#bbc;min-width:38px;text-align:right;}
+    input[type=color]{width:36px;height:22px;border:none;border-radius:4px;cursor:pointer;padding:0;background:none;}
+    input[type=text]{background:#1a1a2e;border:1px solid #2a2a45;color:#ccd;font:12px monospace;border-radius:4px;padding:3px 6px;width:100%;}
+    select{background:#1a1a2e;border:1px solid #2a2a45;color:#ccd;font:12px sans-serif;border-radius:4px;padding:3px 6px;width:100%;}
+    .toggle-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;}
+    .toggle-row label.lbl{font:12px sans-serif;color:#8890b8;}
+    .tog{position:relative;display:inline-flex;width:36px;height:20px;flex-shrink:0;vertical-align:middle;}
+    .tog input{opacity:0;width:0;height:0;position:absolute;}
+    .tog-track{position:absolute;inset:0;background:#2a2a45;border-radius:10px;cursor:pointer;transition:background .2s;}
+    .tog-thumb{position:absolute;width:14px;height:14px;top:3px;left:3px;background:#6678bb;border-radius:50%;transition:transform .2s,background .2s;pointer-events:none;}
+    .tog input:checked ~ .tog-track{background:#3355cc;}
+    .tog input:checked ~ .tog-thumb{transform:translateX(16px);background:#fff;}
+    .copy-btn{width:100%;margin-top:14px;padding:7px 0;background:#1e2a66;border:1px solid #3044aa;color:#99aaff;font:12px sans-serif;border-radius:6px;cursor:pointer;letter-spacing:.04em;}
+    .copy-btn:hover{background:#263580;}
+    .badge{display:inline-block;font:10px monospace;background:#1a1a2e;border:1px solid #2a2a45;color:#778;padding:2px 6px;border-radius:4px;}
+    .info{font:10px sans-serif;color:#556;margin:-4px 0 8px;line-height:1.4;}
+    .mode-btns{display:flex;gap:6px;margin-bottom:10px;}
+    .mode-btn{flex:1;padding:6px 0;background:#12122a;border:1px solid #2a2a45;color:#7788cc;font:11px sans-serif;border-radius:5px;cursor:pointer;letter-spacing:.04em;transition:all .15s;}
+    .mode-btn.active{background:#1e2a66;border-color:#4466cc;color:#aabeff;}
+    .mode-btn:hover{background:#1a1a40;}
+    /* ── Bottom bar ── */
+    #bottomBar{
+      position:absolute;bottom:0;left:0;right:0;height:40px;
+      display:flex;align-items:center;justify-content:space-between;
+      padding:0 10px;z-index:10;
+    }
+    /* Logo section - left */
+    #bottomLogo{display:flex;align-items:center;gap:8px;cursor:pointer;flex:1;}
+    .logo-svg{flex-shrink:0;width:32px;height:32px;}
+    .logo-name{
+      font:600 11px/1 sans-serif;letter-spacing:1.5px;text-transform:uppercase;
+      background:linear-gradient(90deg,#f5a623,#ffcc44,#f5a623);
+      -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
+      filter:drop-shadow(0 0 4px rgba(245,166,35,0.5));
+      white-space:nowrap;
+    }
+    @keyframes lcFloat{
+      0%,100%{transform:translateY(0);}
+      50%{transform:translateY(-1px);}
+    }
+    @keyframes lcPulse{
+      0%,100%{opacity:0.7;}50%{opacity:1;}
+    }
+    /* Hint - center */
+    #hint{
+      flex:1;text-align:center;
+      font:11px sans-serif;letter-spacing:.06em;
+      background:linear-gradient(45deg,#0099dd,#5A0090);
+      -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
+      filter:drop-shadow(0 0 2px #0099dd);
+    }
+    /* Tile indicator + buttons - right */
+    #bottomRight{display:flex;align-items:center;gap:6px;flex:1;justify-content:flex-end;}
+    #tileIndicator{color:#4466aa;font:10px monospace;letter-spacing:.05em;}
+    #stackBtns{display:none;flex-direction:row;gap:4px;}
+    #btnAddTile,#btnRemTile{width:22px;height:22px;background:#0e0e1a;border:1px solid #2a3a5a;border-radius:4px;color:#6688cc;font:bold 14px sans-serif;cursor:pointer;line-height:1;}
+    #btnAddTile:hover,#btnRemTile:hover{border-color:#4466aa;color:#aabeff;}
+    #btnAddTile:disabled,#btnRemTile:disabled{opacity:0.3;cursor:default;}
+    /* ── Section 2 ── */
+    #section2{
+      width:100%;
+      padding:32px 40px;
+      background:#080810;
+      border:1px solid transparent;
+      outline:1px solid rgba(0,153,221,0.08);
+      box-shadow:0 0 24px rgba(90,0,144,0.04);
+      margin-top:2px;
+    }
+    #section2-text{
+      font:400 13px/1.6 monospace;
+      letter-spacing:.22em;
+      text-transform:uppercase;
+      color:rgba(100,120,180,0.75);
+      text-align:center;
+    }
+  </style>
 </head>
 <body>
+<div id="page-wrap">
 
-    <script type="module" src="https://unpkg.com/@splinetool/viewer@1.12.69/build/spline-viewer.js"></script>
-    <spline-viewer url="https://prod.spline.design/AIZkBf13oHFx-STS/scene.splinecode"></spline-viewer>
+<div id="app-border">
+  <!-- Tech border accent elements -->
+  <div id="app-corner-tr"></div>
+  <div id="app-corner-bl"></div>
+  <div id="app-scan"></div>
 
-    
-    <div class="content">
-        <h1>HARDBEN</h1>
-        <p>探索科技与未来的边界</p>
+<div id="viewer">
+  <canvas id="c"></canvas>
+  <div id="bottomBar">
+    <!-- Left: logo -->
+    <div id="bottomLogo">
+      <svg class="logo-svg" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <linearGradient id="lg1" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" stop-color="#00d4ff"/>
+            <stop offset="100%" stop-color="#0066ff"/>
+          </linearGradient>
+          <linearGradient id="lg2" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" stop-color="#a855f7"/>
+            <stop offset="100%" stop-color="#6600cc"/>
+          </linearGradient>
+          <linearGradient id="lg3" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" stop-color="#00ffcc"/>
+            <stop offset="100%" stop-color="#0099aa"/>
+          </linearGradient>
+          <filter id="glow">
+            <feGaussianBlur stdDeviation="1" result="blur"/>
+            <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+          </filter>
+        </defs>
+        <!-- Top tile -->
+        <g filter="url(#glow)" style="animation:lcFloat 3s ease-in-out infinite">
+          <polygon points="16,2 26,7 16,12 6,7" fill="url(#lg1)" opacity="0.95"/>
+          <polygon points="16,12 26,7 26,10 16,15" fill="#0044bb" opacity="0.8"/>
+          <polygon points="16,12 6,7 6,10 16,15" fill="#003399" opacity="0.6"/>
+        </g>
+        <!-- Middle tile -->
+        <g filter="url(#glow)" style="animation:lcFloat 3s ease-in-out infinite;animation-delay:0.4s">
+          <polygon points="16,13 26,18 16,23 6,18" fill="url(#lg2)" opacity="0.9"/>
+          <polygon points="16,23 26,18 26,21 16,26" fill="#440088" opacity="0.8"/>
+          <polygon points="16,23 6,18 6,21 16,26" fill="#330066" opacity="0.6"/>
+        </g>
+        <!-- Scan line accent -->
+        <line x1="4" y1="16" x2="28" y2="16" stroke="rgba(0,220,255,0.15)" stroke-width="0.5"/>
+        <!-- Corner dots -->
+        <circle cx="4" cy="4" r="0.8" fill="#00d4ff" opacity="0.6" style="animation:lcPulse 2s ease-in-out infinite"/>
+        <circle cx="28" cy="4" r="0.8" fill="#a855f7" opacity="0.6" style="animation:lcPulse 2s ease-in-out infinite;animation-delay:0.5s"/>
+        <circle cx="4" cy="28" r="0.8" fill="#00ffcc" opacity="0.6" style="animation:lcPulse 2s ease-in-out infinite;animation-delay:1s"/>
+        <circle cx="28" cy="28" r="0.8" fill="#00d4ff" opacity="0.6" style="animation:lcPulse 2s ease-in-out infinite;animation-delay:1.5s"/>
+      </svg>
+      <span class="logo-name">3D Tile Builder</span>
+    </div>
+    <!-- Center: drag hint -->
+    <div id="hint">DRAG TO ROTATE</div>
+    <!-- Right: tile indicator + +/- buttons -->
+    <div id="bottomRight">
+      <div id="tileIndicator">TILE 1</div>
+      <div id="stackBtns">
+        <button id="btnAddTile" title="Add tile">+</button>
+        <button id="btnRemTile" title="Remove tile">−</button>
+      </div>
+    </div>
+  </div>
+  <!-- Panel toggle: neon power button top-right of viewer -->
+  <button id="panelToggle" title="Toggle controls">
+    <div class="neon-button">
+      <div class="inner-ring"></div>
+      <div class="tech-pattern"></div>
+      <span class="power-emoji">🌀</span>
+    </div>
+  </button>
+</div>
+
+<div id="panel">
+  <!-- Tab bar -->
+  <div class="tab-bar">
+    <button class="tab-btn active" data-tab="scene">Scene</button>
+    <button class="tab-btn" data-tab="label">Label</button>
+    <button class="tab-btn" data-tab="tile">Tile</button>
+  </div>
+
+  <!-- ── SCENE TAB ── -->
+  <div class="tab-pane active" id="tab-scene">
+
+    <div class="section-title">Orientation</div>
+    <div class="mode-btns">
+      <button class="mode-btn active" id="btnFlat">⬜ Flat</button>
+      <button class="mode-btn" id="btnStand">▭ Standing</button>
     </div>
 
+    <div class="section-title">Auto Rotation</div>
+    <div class="toggle-row">
+      <label class="lbl">Enabled</label>
+      <label class="tog"><input type="checkbox" id="autoOn" checked><span class="tog-track"></span><span class="tog-thumb"></span></label>
+    </div>
+    <div class="row">
+      <label>Speed</label>
+      <input type="range" id="autoSpeed" min="0" max="30" value="4" step="1">
+      <span class="val" id="autoSpeedV">4</span>
+    </div>
+
+    <div class="section-title">Scene</div>
+    <div class="row">
+      <label>Ambient</label>
+      <input type="range" id="ambientI" min="0" max="2" value="0.70" step="0.05">
+      <span class="val" id="ambientIV">0.70</span>
+    </div>
+    <div class="row">
+      <label>Sun</label>
+      <input type="range" id="sunI" min="0" max="3" value="1.5" step="0.1">
+      <span class="val" id="sunIV">1.50</span>
+    </div>
+    <div class="row">
+      <label>FOV</label>
+      <input type="range" id="camFOV" min="5" max="60" value="5" step="1">
+      <span class="val" id="camFOVV">5</span>
+    </div>
+    <div class="row">
+      <label>Cam height</label>
+      <input type="range" id="camY" min="1" max="20" value="5" step="0.1">
+      <span class="val" id="camYV">5.0</span>
+    </div>
+    <div class="row">
+      <label>Cam distance</label>
+      <input type="range" id="camDist" min="5" max="60" value="55" step="1">
+      <span class="val" id="camDistV">55</span>
+    </div>
+    <!-- canvasHeight kept hidden for JSON import/export compatibility -->
+    <input type="range" id="canvasHeight" min="300" max="900" value="500" step="50" style="display:none">
+    <span id="canvasHeightV" style="display:none">500</span>
+
+    <div style="display:flex;gap:8px;margin-top:14px;">
+      <button class="copy-btn" id="importBtn" style="flex:1;margin-top:0;">⤵ Import JSON</button>
+      <button class="copy-btn" id="exportBtn" style="flex:1;margin-top:0;">⤴ Export JSON</button>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:8px;">
+      <button class="copy-btn" id="setDefaultBtn" style="flex:1;margin-top:0;">⭐ Set as Default</button>
+      <button class="copy-btn" id="resetDefaultBtn" style="flex:1;margin-top:0;">↺ Reset Default</button>
+    </div>
+    <input type="file" id="importFile" accept=".json" style="display:none">
+
+    <div class="section-title" id="stackCtrlSection">Stack (Flat)</div>
+    <div class="row" id="stackSpacingRow">
+      <label id="stackSpacingLabel">Tile spacing</label>
+      <input type="range" id="stackSpacing" min="0" max="2.0" value="0.8" step="0.05">
+      <span class="val" id="stackSpacingV">0.80</span>
+    </div>
+    <div class="toggle-row" id="syncWRow">
+      <label class="lbl" id="syncWLabel">Sync Width</label>
+      <label class="tog"><input type="checkbox" id="syncW"><span class="tog-track"></span><span class="tog-thumb"></span></label>
+    </div>
+    <div class="toggle-row" id="syncHRow">
+      <label class="lbl" id="syncHLabel">Sync Height</label>
+      <label class="tog"><input type="checkbox" id="syncH"><span class="tog-track"></span><span class="tog-thumb"></span></label>
+    </div>
+    <div class="toggle-row" id="syncDRow">
+      <label class="lbl" id="syncDLabel">Sync Depth</label>
+      <label class="tog"><input type="checkbox" id="syncD"><span class="tog-track"></span><span class="tog-thumb"></span></label>
+    </div>
+  </div>
+
+  <!-- ── LABEL TAB ── -->
+  <div class="tab-pane" id="tab-label">
+
+    <div class="section-title">Label Text</div>
+    <div class="row" style="flex-direction:column;align-items:stretch;gap:4px;">
+      <label>Content</label>
+      <input type="text" id="txtContent" value="Welcome">
+    </div>
+    <div class="row">
+      <label>Color</label>
+      <input type="color" id="txtColor" value="#0a1a4a">
+      <span class="val badge" id="txtColorV">#0a1a4a</span>
+    </div>
+    <div class="row">
+      <label>Size (px)</label>
+      <input type="range" id="txtSize" min="18" max="140" value="78" step="1">
+      <span class="val" id="txtSizeV">78</span>
+    </div>
+    <div class="row">
+      <label>Weight</label>
+      <select id="txtWeight"><option value="normal">Normal</option><option value="bold" selected>Bold</option></select>
+    </div>
+    <div class="row">
+      <label>Font</label>
+      <select id="txtFont">
+        <option value="Arial, sans-serif" selected>Arial</option>
+        <option value="Georgia, serif">Georgia</option>
+        <option value="'Courier New', monospace">Courier New</option>
+        <option value="Impact, sans-serif">Impact</option>
+        <option value="Verdana, sans-serif">Verdana</option>
+      </select>
+    </div>
+    <div class="row">
+      <label>Align</label>
+      <select id="txtAlign"><option value="left" selected>Left</option><option value="center">Center</option><option value="right">Right</option></select>
+    </div>
+    <div class="row">
+      <label>Style</label>
+      <select id="txtStyle">
+        <option value="flat" selected>Flat</option>
+        <option value="embossed">Embossed</option>
+        <option value="engraved">Engraved</option>
+      </select>
+    </div>
+    <div class="row">
+      <label>Depth / intensity</label>
+      <input type="range" id="txtDepth" min="1" max="12" value="5" step="1">
+      <span class="val" id="txtDepthV">5</span>
+    </div>
+    <div class="row">
+      <label>Highlight</label>
+      <input type="color" id="txtHighlight" value="#ffffff">
+      <span class="val badge" id="txtHighlightV">#ffffff</span>
+    </div>
+    <div class="row">
+      <label>Shadow color</label>
+      <input type="color" id="txtShadowColor" value="#000000">
+      <span class="val badge" id="txtShadowColorV">#000000</span>
+    </div>
+
+    <div class="section-title">Label Position</div>
+    <p class="info">X/Z keep the label inside the tile.</p>
+    <div class="row">
+      <label>X offset</label>
+      <input type="range" id="lblX" min="-1" max="1" value="-0.5" step="0.05">
+      <span class="val" id="lblXV">-0.50</span>
+    </div>
+    <div class="row">
+      <label>Z offset</label>
+      <input type="range" id="lblZ" min="-1" max="1" value="1" step="0.05">
+      <span class="val" id="lblZV">1</span>
+    </div>
+    <div class="row">
+      <label>Label width %</label>
+      <input type="range" id="lblWPct" min="10" max="95" value="80" step="1">
+      <span class="val" id="lblWPctV">80%</span>
+    </div>
+    <div class="row">
+      <label>Label height %</label>
+      <input type="range" id="lblHPct" min="5" max="70" value="22" step="1">
+      <span class="val" id="lblHPctV">22%</span>
+    </div>
+  </div>
+
+  <!-- ── TILE TAB ── -->
+  <div class="tab-pane" id="tab-tile">
+
+    <div class="section-title">Tile Shape</div>
+    <div class="row">
+      <label>Width</label>
+      <input type="range" id="tileW" min="0.5" max="5" value="1.4" step="0.1">
+      <span class="val" id="tileWV">1.2</span>
+    </div>
+    <div class="row">
+      <label>Depth</label>
+      <input type="range" id="tileD" min="0.5" max="5" value="1.4" step="0.1">
+      <span class="val" id="tileDV">1.2</span>
+    </div>
+    <div class="row">
+      <label>Height</label>
+      <input type="range" id="tileH" min="0.1" max="2" value="0.30" step="0.05">
+      <span class="val" id="tileHV">0.30</span>
+    </div>
+    <div class="row">
+      <label>Corner radius</label>
+      <input type="range" id="cornerR" min="0.01" max="0.45" value="0.1" step="0.01">
+      <span class="val" id="cornerRV">0.1</span>
+    </div>
+    <div class="row">
+      <label>Bevel size</label>
+      <input type="range" id="bevelS" min="0" max="0.3" value="0.02" step="0.01">
+      <span class="val" id="bevelSV">0.02</span>
+    </div>
+
+    <div class="section-title">Tile Color</div>
+    <div class="row">
+      <label>Top face</label>
+      <input type="color" id="colorTop" value="#5bc8f5">
+      <span class="val badge" id="colorTopV">#5bc8f5</span>
+    </div>
+    <div class="row">
+      <label>Side face</label>
+      <input type="color" id="colorSide" value="#2aaad8">
+      <span class="val badge" id="colorSideV">#2aaad8</span>
+    </div>
+    <div class="row">
+      <label>Roughness</label>
+      <input type="range" id="rough" min="0" max="1" value="0.18" step="0.01">
+      <span class="val" id="roughV">0.18</span>
+    </div>
+    <div class="row">
+      <label>Metalness</label>
+      <input type="range" id="metal" min="0" max="1" value="0.00" step="0.01">
+      <span class="val" id="metalV">0.00</span>
+    </div>
+  </div>
+
+</div><!-- /#panel -->
+</div><!-- /#app-border -->
+
+<!-- Section 2 -->
+<div id="section2">
+  <div id="section2-text">Pulse of the Digital Horizon</div>
+</div>
+
+</div><!-- /#page-wrap -->
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+const cv = document.getElementById('c');
+
+var canvasH = 500;  // kept for JSON import/export compat — actual size computed below
+
+function viewSz(){
+  const panelOpen = document.getElementById('panel') && document.getElementById('panel').classList.contains('open');
+  const totalW = window.innerWidth * 0.90;
+  const w = Math.max(totalW - (panelOpen ? 280 : 0) - 16, 260);
+  const h = Math.round(w);   // square: height === width
+  canvasH = h;               // keep in sync for JSON export
+  return { w, h };
+}
+let { w:W, h:H } = viewSz();
+
+const renderer = new THREE.WebGLRenderer({ canvas:cv, antialias:true, alpha:true, stencil:true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setSize(W, H);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type    = THREE.PCFSoftShadowMap;
+
+const scene  = new THREE.Scene();
+scene.background = new THREE.Color(0x080810);
+const camera = new THREE.PerspectiveCamera(14, W/H, 0.1, 500);
+
+const ambient = new THREE.AmbientLight(0xffffff, 0.55);
+scene.add(ambient);
+const sun = new THREE.DirectionalLight(0xffffff, 1.3);
+sun.position.set(5, 12, 7);
+sun.castShadow = true;
+sun.shadow.mapSize.width = sun.shadow.mapSize.height = 2048;
+scene.add(sun);
+const fill = new THREE.DirectionalLight(0xffffff, 0.3);
+fill.position.set(-5, 3, 3);
+scene.add(fill);
+
+const floor = new THREE.Mesh(
+  new THREE.PlaneGeometry(40, 40),
+  new THREE.ShadowMaterial({ opacity:0.18 })
+);
+floor.rotation.x    = -Math.PI / 2;
+floor.receiveShadow = true;
+scene.add(floor);
+
+const group = new THREE.Group();
+scene.add(group);
+
+// ── Shared state ──────────────────────────────────────────────────────
+let topMat       = null;
+let sideMat      = null;
+let labelMesh    = null;
+let tileMesh     = null;
+let standingMode = false;
+let ry = -0.38, rx = 0;
+
+// ── Tile-0 cfg stores and extra-tile state (declared early to avoid re-init) ──
+var tile0FlatCfg        = null;
+var tile0StandCfg       = null;
+var savedFlatExtraCfgs  = [];
+var savedStandExtraCfgs = [];
+var extraTiles          = [];
+var activeTileIdx       = 0;
+var flatSpacingVal      = 0.8;   // saved Flat mode spacing
+var standSpacingVal     = 0.0;   // saved Standing mode spacing (default: touching)
+
+function g(id)  { return document.getElementById(id); }
+function fv(id) { return parseFloat(g(id).value); }
+
+function hexAlpha(a){
+  return Math.round(Math.max(0, Math.min(1, a)) * 255).toString(16).padStart(2, '0');
+}
+
+// ── Shared config ─────────────────────────────────────────────────────
+function getCfg(){
+  const TW = fv('tileW'), TD = fv('tileD'), TH = fv('tileH');
+  const R  = Math.min(fv('cornerR'), TW/2*0.9, TD/2*0.9);
+  const BS = Math.min(fv('bevelS'),  R*0.8);
+  const inset   = BS * 1.2;
+  const usableW = TW - inset*2;
+  const usableD = TD - inset*2;
+  const lblWPct = fv('lblWPct') / 100;
+  const lblHPct = fv('lblHPct') / 100;
+  const lblW    = Math.min(lblWPct * usableW, usableW);
+  const lblH    = Math.min(lblHPct * usableD, usableD);
+  const travelX = (usableW - lblW) / 2;
+  const travelZ = (usableD - lblH) / 2;
+  const lblX    = fv('lblX') * travelX;
+  const lblZ    = fv('lblZ') * travelZ;
+  return {
+    TW, TD, TH, R, BS,
+    colorTop:      g('colorTop').value,
+    colorSide:     g('colorSide').value,
+    rough:         fv('rough'),
+    metal:         fv('metal'),
+    txtContent:    g('txtContent').value,
+    txtColor:      g('txtColor').value,
+    txtSize:       fv('txtSize'),
+    txtWeight:     g('txtWeight').value,
+    txtFont:       g('txtFont').value,
+    txtAlign:      g('txtAlign').value,
+    txtStyle:      g('txtStyle').value,
+    txtDepth:      fv('txtDepth'),
+    txtHighlight:  g('txtHighlight').value,
+    txtShadowColor:g('txtShadowColor').value,
+    lblW, lblH, lblX, lblZ,
+  };
+}
+
+// ── Camera ────────────────────────────────────────────────────────────
+function updateCamera(){
+  const fov  = fv('camFOV');
+  const camY = fv('camY');
+  const dist = fv('camDist');
+  camera.fov = fov;
+  camera.updateProjectionMatrix();
+  camera.position.set(0, camY, dist);
+  if(standingMode){
+    camera.lookAt(typeof standLookAtX !== 'undefined' ? standLookAtX : 0, 0, 0);
+  } else {
+    camera.lookAt(0, typeof stackLookAtY !== 'undefined' ? stackLookAtY : 0.4, 0);
+  }
+}
+
+// ── Shared: draw text onto a canvas, return CanvasTexture ─────────────
+function makeTextCanvas(c){
+  const tc  = document.createElement('canvas');
+  const canvasH = 128;
+  const canvasW = Math.min(Math.round((c.lblW / Math.max(c.lblH, 0.05)) * canvasH), 2048);
+  tc.width  = canvasW;
+  tc.height = canvasH;
+  const ctx = tc.getContext('2d');
+  ctx.clearRect(0, 0, canvasW, canvasH);
+  const font = c.txtWeight + ' ' + c.txtSize + 'px ' + c.txtFont;
+  const d    = c.txtDepth;
+  const ax   = c.txtAlign === 'left' ? 16 : c.txtAlign === 'right' ? canvasW - 16 : canvasW / 2;
+  ctx.font         = font;
+  ctx.textBaseline = 'middle';
+  ctx.textAlign    = c.txtAlign;
+  if(c.txtStyle === 'flat'){
+    ctx.shadowColor   = 'rgba(255,255,255,0.35)';
+    ctx.shadowBlur    = 6;
+    ctx.shadowOffsetY = 1;
+    ctx.fillStyle     = c.txtColor;
+    ctx.fillText(c.txtContent, ax, 64);
+  } else if(c.txtStyle === 'embossed'){
+    ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0;
+    ctx.fillStyle   = c.txtShadowColor + hexAlpha(0.7);
+    ctx.fillText(c.txtContent, ax + d*0.6, 64 + d*0.6);
+    ctx.fillStyle   = c.txtHighlight + hexAlpha(0.85);
+    ctx.fillText(c.txtContent, ax - d*0.4, 64 - d*0.4);
+    ctx.fillStyle   = c.txtColor;
+    ctx.fillText(c.txtContent, ax, 64);
+  } else {
+    ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0;
+    ctx.fillStyle   = c.txtHighlight + hexAlpha(0.6);
+    ctx.fillText(c.txtContent, ax + d*0.5, 64 + d*0.5);
+    ctx.fillStyle   = c.txtShadowColor + hexAlpha(0.8);
+    ctx.fillText(c.txtContent, ax - d*0.5, 64 - d*0.5);
+    ctx.fillStyle   = c.txtColor + hexAlpha(0.55);
+    ctx.fillText(c.txtContent, ax, 64);
+  }
+  return new THREE.CanvasTexture(tc);
+}
+
+// ── Shared: rounded-rectangle shape ──────────────────────────────────
+function makeShape(hw, hd, R){
+  const s = new THREE.Shape();
+  s.moveTo(-hw + R, -hd);
+  s.lineTo( hw - R, -hd);
+  s.quadraticCurveTo( hw, -hd,  hw, -hd + R);
+  s.lineTo( hw,  hd - R);
+  s.quadraticCurveTo( hw,  hd,  hw - R,  hd);
+  s.lineTo(-hw + R,  hd);
+  s.quadraticCurveTo(-hw,  hd, -hw,  hd - R);
+  s.lineTo(-hw, -hd + R);
+  s.quadraticCurveTo(-hw, -hd, -hw + R, -hd);
+  return s;
+}
+
+// ── Shared: clear scene group ─────────────────────────────────────────
+function clearGroup(){
+  while(group.children.length) group.remove(group.children[0]);
+  labelMesh = null;
+  tileMesh  = null;
+  group.rotation.set(0, 0, 0);
+}
+
+// ── Shared: update material colors only ──────────────────────────────
+function updateMats(){
+  const c = getCfg();
+  if(topMat){  topMat.color.set(c.colorTop);  topMat.roughness  = c.rough;        topMat.metalness = c.metal; }
+  if(sideMat){ sideMat.color.set(c.colorSide); sideMat.roughness = c.rough + 0.07; sideMat.metalness = c.metal; }
+}
+
+// ══════════════════════════════════════════════════════════════════════
+//  FLAT MODE — tile lies horizontally
+//
+//  Geometry pipeline:
+//    1. Shape in XY plane (TW × TD)
+//    2. ExtrudeGeometry along +Z, depth = TH
+//    3. geo.rotateX(-PI/2)  →  extrusion now goes up (+Y)
+//    4. geo.translate(0, -minY, 0)  →  tile bottom at Y=0
+//
+//  Final bounding box:
+//    X : -TW/2  ~  +TW/2
+//    Y :  0     ~  TH+2·BS   (bottom=0, top=bb.max.y)
+//    Z : -TD/2  ~  +TD/2
+//
+//  Top-face normal = local +Y
+//  Label: rotation.x = -PI/2 (lies flat), position.y = bb.max.y + 0.002
+//
+//  Drag: ry→Y-spin (left/right), rx→X-tilt (up/down)  — natural ✓
+// ══════════════════════════════════════════════════════════════════════
+
+function addFlatLabel(c, bb){
+  const lGeo = new THREE.PlaneGeometry(c.lblW, c.lblH);
+  const lMat = new THREE.MeshBasicMaterial({
+    map: makeTextCanvas(c),
+    transparent:true, depthTest:false, depthWrite:false, alphaTest:0.01
+  });
+  labelMesh             = new THREE.Mesh(lGeo, lMat);
+  labelMesh.renderOrder = 1;
+  labelMesh.rotation.x  = -Math.PI / 2;
+  labelMesh.position.set(c.lblX, bb.max.y + 0.002, c.lblZ);
+  group.add(labelMesh);
+}
+
+function buildFlatTile(){
+  clearGroup();
+  const c  = getCfg();
+  const hw = c.TW / 2, hd = c.TD / 2;
+
+  const geo = new THREE.ExtrudeGeometry(makeShape(hw, hd, c.R), {
+    depth: c.TH, bevelEnabled: c.BS > 0.001,
+    bevelThickness: c.BS, bevelSize: c.BS, bevelSegments: 10
+  });
+  geo.rotateX(-Math.PI / 2);
+  geo.computeBoundingBox();
+  geo.translate(0, -geo.boundingBox.min.y, 0);   // bottom to Y=0
+  geo.computeBoundingBox();
+
+  floor.position.y = 0;
+
+  topMat  = new THREE.MeshStandardMaterial({ color:c.colorTop,  roughness:c.rough,        metalness:c.metal });
+  sideMat = new THREE.MeshStandardMaterial({ color:c.colorSide, roughness:c.rough + 0.07, metalness:c.metal });
+  tileMesh = new THREE.Mesh(geo, [topMat, sideMat]);
+  group.add(tileMesh);
+
+  addFlatLabel(c, geo.boundingBox);
+
+  ry = -0.38;
+  rx =  0;
+}
+
+function rebuildFlatLabel(){
+  if(labelMesh){ group.remove(labelMesh); labelMesh = null; }
+  if(!tileMesh) return;
+  const c = getCfg();
+  tileMesh.geometry.computeBoundingBox();
+  addFlatLabel(c, tileMesh.geometry.boundingBox);
+}
+
+// ══════════════════════════════════════════════════════════════════════
+//  STANDING MODE — tile stands upright, large face toward camera
+//
+//  Geometry pipeline:
+//    1. Shape in XY plane (TW wide × TD tall)
+//    2. ExtrudeGeometry along +Z, depth = TH   — NO rotateX
+//    3. Center geometry: translate(0, -cY, -cZ) so origin = tile center
+//
+//  Final bounding box (symmetric around origin):
+//    X : -TW/2  ~  +TW/2   (width,     horizontal on screen)
+//    Y : -TD/2  ~  +TD/2   (height,    vertical on screen)
+//    Z : -(TH/2+BS) ~ +(TH/2+BS)   (thickness, into/out of screen)
+//
+//  Front face (closest to camera) = local +Z face at Z = bb.max.z
+//  Front face normal = local +Z  →  faces camera directly  ✓
+//
+//  Label:
+//    rotation = (0,0,0)  — PlaneGeometry default
+//      normal = local +Z  →  toward camera  ✓
+//      up     = local +Y  →  world +Y       ✓  text upright
+//    position = (c.lblX, c.lblZ, bb.max.z + 0.002)
+//      c.lblX → horizontal offset on face
+//      c.lblZ → vertical offset on face (repurposed from flat's depth offset)
+//
+//  Drag: ry→Y-spin (left/right), rx→X-tilt (up/down)
+//    group.rotation.z is always 0 — drag is identical to flat mode  ✓
+// ══════════════════════════════════════════════════════════════════════
+
+function addStandLabel(c, bb){
+  const lGeo = new THREE.PlaneGeometry(c.lblW, c.lblH);
+  const lMat = new THREE.MeshBasicMaterial({
+    map: makeTextCanvas(c),
+    transparent:true, depthTest:false, depthWrite:false, alphaTest:0.01
+  });
+  labelMesh             = new THREE.Mesh(lGeo, lMat);
+  labelMesh.renderOrder = 1;
+  // rotation = (0,0,0): PlaneGeometry default normal = local +Z = toward camera ✓
+  //                     PlaneGeometry default up     = local +Y = world up      ✓
+  labelMesh.position.set(c.lblX, c.lblZ, bb.max.z + 0.002);
+  // Stencil guard: only draw where no extra tile's mask has written (stencil == 0)
+  // This prevents tile 0's label bleeding through an overlapping extra tile body.
+  labelMesh.onBeforeRender = function(renderer){
+    const gl = renderer.getContext();
+    gl.enable(gl.STENCIL_TEST);
+    gl.stencilMask(0x00);
+    gl.stencilFunc(gl.EQUAL, 0, 0xff);
+    gl.stencilOp(gl.KEEP, gl.KEEP, gl.KEEP);
+  };
+  labelMesh.onAfterRender = function(renderer){
+    const gl = renderer.getContext();
+    gl.disable(gl.STENCIL_TEST);
+    gl.stencilMask(0xff);
+  };
+  group.add(labelMesh);
+}
+
+function buildStandTile(){
+  clearGroup();
+  const c  = getCfg();
+  const hw = c.TW / 2, hd = c.TD / 2;
+
+  // Same rounded-rect shape as flat — TW wide, TD tall, in XY plane.
+  // ExtrudeGeometry goes along +Z (depth = TH = tile thickness).
+  // NO rotateX: tile already stands upright.
+  const geo = new THREE.ExtrudeGeometry(makeShape(hw, hd, c.R), {
+    depth: c.TH, bevelEnabled: c.BS > 0.001,
+    bevelThickness: c.BS, bevelSize: c.BS, bevelSegments: 10
+  });
+
+  // Center geometry around origin (Y and Z); X is already centered.
+  geo.computeBoundingBox();
+  const cY = (geo.boundingBox.max.y + geo.boundingBox.min.y) / 2;
+  const cZ = (geo.boundingBox.max.z + geo.boundingBox.min.z) / 2;
+  geo.translate(0, -cY, -cZ);
+  geo.computeBoundingBox();
+
+  // Floor at tile bottom edge
+  floor.position.y = geo.boundingBox.min.y;
+
+  topMat  = new THREE.MeshStandardMaterial({ color:c.colorTop,  roughness:c.rough,        metalness:c.metal });
+  sideMat = new THREE.MeshStandardMaterial({ color:c.colorSide, roughness:c.rough + 0.07, metalness:c.metal });
+  tileMesh = new THREE.Mesh(geo, [topMat, sideMat]);
+  group.add(tileMesh);
+
+  addStandLabel(c, geo.boundingBox);
+
+  ry =  0.25;
+  rx =  0.;
+}
+
+function rebuildStandLabel(){
+  if(labelMesh){ group.remove(labelMesh); labelMesh = null; }
+  if(!tileMesh) return;
+  const c = getCfg();
+  tileMesh.geometry.computeBoundingBox();
+  addStandLabel(c, tileMesh.geometry.boundingBox);
+}
+
+// ── Unified rebuild entry point ───────────────────────────────────────
+function rebuildLabel(){
+  if(standingMode) rebuildStandLabel();
+  else             rebuildFlatLabel();
+}
+
+// ── Initial build ─────────────────────────────────────────────────────
+buildFlatTile();
+updateCamera();
+// NOTE: tile0FlatCfg and tile0StandCfg are initialised AFTER snapCfgFromPanel
+// is defined further below (see "Initial setup" section near the stack code).
+
+// ── Orientation buttons ───────────────────────────────────────────────
+// ── Update Stack section labels for current mode ──────────────────────
+function updateStackPanelLabels(){
+  if(standingMode){
+    g('stackCtrlSection').textContent  = 'Stack (Standing)';
+    g('stackSpacingLabel').textContent = 'Tile spacing';
+    g('syncWLabel').textContent        = 'Sync Width';
+    g('syncHLabel').textContent        = 'Sync Height';
+    g('syncDLabel').textContent        = 'Sync Thickness';
+    g('stackSpacing').min              = '-2.0';
+  } else {
+    g('stackCtrlSection').textContent  = 'Stack (Flat)';
+    g('stackSpacingLabel').textContent = 'Tile spacing';
+    g('syncWLabel').textContent        = 'Sync Width';
+    g('syncHLabel').textContent        = 'Sync Height';
+    g('syncDLabel').textContent        = 'Sync Depth';
+    g('stackSpacing').min              = '0';
+  }
+}
+
+g('btnFlat').addEventListener('click', () => {
+  if(!standingMode) return; // already flat
+  // 1. Save current panel → tile0StandCfg + standing spacing
+  tile0StandCfg  = snapCfgFromPanel();
+  standSpacingVal = parseFloat(g('stackSpacing').value);
+  // 2. Save standing extra tiles before removing them
+  savedStandExtraCfgs = extraTiles.map(et => ({...et.cfg}));
+  while(extraTiles.length > 0){ const et = extraTiles.pop(); scene.remove(et.grp); }
+  activeTileIdx = 0;
+  // 3. Switch mode flag and UI
+  standingMode = false;
+  g('btnFlat').classList.add('active');
+  g('btnStand').classList.remove('active');
+  // 4. Restore flat spacing
+  g('stackSpacing').value = flatSpacingVal;
+  g('stackSpacingV').textContent = parseFloat(flatSpacingVal).toFixed(2);
+  // 5. Restore tile0FlatCfg → panel so buildFlatTile reads correct values
+  loadCfgToPanel(tile0FlatCfg);
+  // 6. Build flat tile 0 from restored panel values (untouched function)
+  buildFlatTile();
+  // 7. Restore extra tiles that were saved when we switched to standing
+  savedFlatExtraCfgs.forEach((cfg, i) => {
+    const step = getStep();
+    const yWorld = -(i + 1) * step;
+    const et = buildExtraTile(cfg, yWorld, i);
+    et.grp.position.y = yWorld;
+    et.grp.rotation.x = group.rotation.x;
+    et.grp.rotation.y = group.rotation.y;
+    extraTiles.push(et);
+  });
+  savedFlatExtraCfgs = [];
+  // 8. Reset selection to tile 0
+  activeTileIdx = 0;
+  repositionExtras();
+  updateStackUI();
+  showStackControls(true);
+  updateStackPanelLabels();
+  setStackOutline(0);
+  updateCamera();
+});
+
+g('btnStand').addEventListener('click', () => {
+  if(standingMode) return; // already standing
+  // 1. Save current panel → active tile's cfg store + flat spacing
+  if(activeTileIdx === 0){
+    tile0FlatCfg = snapCfgFromPanel();
+  } else {
+    extraTiles[activeTileIdx - 1].cfg = snapCfgFromPanel();
+  }
+  flatSpacingVal = parseFloat(g('stackSpacing').value);
+  // 2. Save all flat extra tile cfgs before removing them
+  savedFlatExtraCfgs = extraTiles.map(et => ({...et.cfg}));
+  // 3. Remove extra tiles from scene
+  while(extraTiles.length > 0){
+    const et = extraTiles.pop();
+    scene.remove(et.grp);
+  }
+  activeTileIdx = 0;
+  // 4. Switch mode flag and UI
+  standingMode = true;
+  g('btnStand').classList.add('active');
+  g('btnFlat').classList.remove('active');
+  // 5. Restore standing spacing
+  g('stackSpacing').value = standSpacingVal;
+  g('stackSpacingV').textContent = parseFloat(standSpacingVal).toFixed(2);
+  // 6. Load tile0StandCfg → panel so buildStandTile reads correct values
+  loadCfgToPanel(tile0StandCfg);
+  // 7. Build standing tile 0 from its own stored cfg
+  buildStandTile();
+  // 8. Restore standing extra tiles saved from last time in standing mode
+  savedStandExtraCfgs.forEach((cfg, i) => {
+    const xWorld = (i + 1) * getStandStep();
+    const et = buildExtraStandTile(cfg, xWorld, i);
+    et.grp.position.x = xWorld;
+    et.grp.rotation.x = group.rotation.x;
+    et.grp.rotation.y = group.rotation.y;
+    extraTiles.push(et);
+  });
+  savedStandExtraCfgs = [];
+  activeTileIdx = 0;
+  repositionStandExtras();
+  updateStackUI();
+  showStackControls(true);
+  updateStackPanelLabels();
+  setStackOutline(0);
+  updateCamera();
+});
+
+// ── Drag / touch rotation ─────────────────────────────────────────────
+// Auto-rotation is controlled only by the toggle switch.
+// Dragging turns it off immediately; it never resumes automatically.
+// The user must re-enable it manually via the switch.
+let drag = false, lx = 0, ly = 0;
+cv.style.cursor = 'grab';
+
+function pauseAuto(){ g('autoOn').checked = false; }
+
+cv.addEventListener('mousedown', e => {
+  drag = true; lx = e.clientX; ly = e.clientY;
+  pauseAuto(); cv.style.cursor = 'grabbing';
+});
+window.addEventListener('mouseup', () => {
+  if(!drag) return;
+  drag = false; cv.style.cursor = 'grab';
+});
+cv.addEventListener('mousemove', e => {
+  if(!drag) return;
+  ry += (e.clientX - lx) * 0.008;
+  rx  = Math.max(-0.3, Math.min(0.7, rx + (e.clientY - ly) * 0.005));
+  lx  = e.clientX; ly = e.clientY;
+});
+cv.addEventListener('touchstart', e => {
+  drag = true; lx = e.touches[0].clientX; ly = e.touches[0].clientY; pauseAuto();
+}, { passive:true });
+cv.addEventListener('touchmove', e => {
+  ry += (e.touches[0].clientX - lx) * 0.008;
+  rx  = Math.max(-0.3, Math.min(0.7, rx + (e.touches[0].clientY - ly) * 0.005));
+  lx  = e.touches[0].clientX; ly = e.touches[0].clientY;
+}, { passive:true });
+cv.addEventListener('touchend', () => { drag = false; });
+
+// ── Render loop ───────────────────────────────────────────────────────
+// Identical for both modes. group.rotation.z is never touched (always 0).
+(function loop(){
+  requestAnimationFrame(loop);
+  if(g('autoOn').checked && !drag) ry += +g('autoSpeed').value * 0.00032;
+  group.rotation.y = ry;
+  group.rotation.x = rx;
+  renderer.render(scene, camera);
+})();
+
+// ── Control binding ───────────────────────────────────────────────────
+const TILE_IDS  = ['tileW','tileD','tileH','cornerR','bevelS'];
+const LABEL_IDS = ['txtSize','txtDepth','lblX','lblZ','lblWPct','lblHPct'];
+const MAT_IDS   = ['rough','metal'];
+
+function onPanelChange(fn){
+  pauseAuto();
+  if(!activeTileIdx){
+    fn();
+    // Keep tile-0 cfg store in sync with panel edits
+    if(standingMode) tile0StandCfg = snapCfgFromPanel();
+    else             tile0FlatCfg  = snapCfgFromPanel();
+    // If tile dimension, material, or shape changed on tile 0 and sync is on, push to extra tiles
+    if(!standingMode && (fn === buildFlatTile || fn === updateMats)) syncExtraTilesToTile0();
+    if(standingMode  && (fn === buildStandTile || fn === updateMats)) syncStandExtraTilesToTile0();
+  } else {
+    // Route panel changes to the selected extra tile instead of tile 0
+    const et = extraTiles[activeTileIdx - 1];
+    if(!et){ fn(); return; }
+    const cfg = snapCfgFromPanel();
+    et.cfg = cfg;
+    const xWorld = et.grp.position.x;
+    const yWorld = et.grp.position.y;
+    const rx_ = et.grp.rotation.x, ry_ = et.grp.rotation.y, rz_ = et.grp.rotation.z;
+    scene.remove(et.grp);
+    let newEt;
+    if(standingMode){
+      newEt = buildExtraStandTile(cfg, xWorld, activeTileIdx - 1);
+      newEt.grp.position.x = xWorld;
+      newEt.grp.position.y = yWorld;
+    } else {
+      newEt = buildExtraTile(cfg, yWorld, activeTileIdx - 1);
+      newEt.grp.position.y = yWorld;
+    }
+    newEt.grp.rotation.x = rx_;
+    newEt.grp.rotation.y = ry_;
+    newEt.grp.rotation.z = rz_;
+    extraTiles[activeTileIdx - 1] = newEt;
+    setStackOutline(activeTileIdx);
+  }
+}
+
+function bindSlider(id, outId, dec, fmt){
+  const el = g(id), out = g(outId);
+  if(!el || !out) return;
+  el.addEventListener('input', () => {
+    out.textContent = fmt ? fmt(parseFloat(el.value)) : parseFloat(el.value).toFixed(dec);
+    if(id === 'camY' || id === 'camDist' || id === 'camFOV'){ updateCamera(); return; }
+    if(id === 'ambientI'){ ambient.intensity = +el.value; return; }
+    if(id === 'sunI')    { sun.intensity     = +el.value; return; }
+    if(TILE_IDS.includes(id))
+      onPanelChange(standingMode ? buildStandTile : buildFlatTile);
+    else if(LABEL_IDS.includes(id))
+      onPanelChange(rebuildLabel);
+    else if(MAT_IDS.includes(id))
+      onPanelChange(updateMats);
+  });
+}
+
+bindSlider('autoSpeed',   'autoSpeedV',  0);
+g('autoOn').addEventListener('change', () => {}); // allows re-enabling auto-rotation after drag
+bindSlider('tileW',  'tileWV',  1);
+bindSlider('tileD',  'tileDV',  1);
+bindSlider('tileH',  'tileHV',  2);
+bindSlider('cornerR','cornerRV',2);
+bindSlider('bevelS', 'bevelSV', 2);
+bindSlider('rough',  'roughV',  2);
+bindSlider('metal',  'metalV',  2);
+bindSlider('txtSize', 'txtSizeV', 0);
+bindSlider('txtDepth','txtDepthV',0);
+bindSlider('lblX',    'lblXV',    2);
+bindSlider('lblZ',    'lblZV',    2);
+bindSlider('lblWPct', 'lblWPctV', 0, v => v + '%');
+bindSlider('lblHPct', 'lblHPctV', 0, v => v + '%');
+bindSlider('ambientI','ambientIV',2);
+bindSlider('sunI',    'sunIV',    2);
+bindSlider('camFOV',  'camFOVV',  0);
+bindSlider('camY',    'camYV',    1);
+bindSlider('camDist', 'camDistV', 0);
+
+function bindColor(id, outId, fn){
+  const el = g(id), out = g(outId);
+  if(!el || !out) return;
+  el.addEventListener('input', () => { out.textContent = el.value; onPanelChange(fn); });
+}
+bindColor('colorTop',      'colorTopV',       updateMats);
+bindColor('colorSide',     'colorSideV',      updateMats);
+bindColor('txtColor',      'txtColorV',       rebuildLabel);
+bindColor('txtHighlight',  'txtHighlightV',   rebuildLabel);
+bindColor('txtShadowColor','txtShadowColorV', rebuildLabel);
+
+['txtContent','txtWeight','txtFont','txtAlign','txtStyle'].forEach(id => {
+  const el = g(id); if(!el) return;
+  el.addEventListener('input',  () => onPanelChange(rebuildLabel));
+  el.addEventListener('change', () => onPanelChange(rebuildLabel));
+});
+
+// ── Build full config snapshot (all parameters) ──────────────────────
+function buildFullConfig(){
+  // Save current panel back to active tile store first
+  if(activeTileIdx === 0){
+    if(standingMode) tile0StandCfg = snapCfgFromPanel();
+    else             tile0FlatCfg  = snapCfgFromPanel();
+  } else if(extraTiles[activeTileIdx - 1]){
+    extraTiles[activeTileIdx - 1].cfg = snapCfgFromPanel();
+  }
+  return {
+    version: '1.9',
+    scene: {
+      standingMode,
+      autoOn:          g('autoOn').checked,
+      autoSpeed:       +g('autoSpeed').value,
+      ambientI:        +g('ambientI').value,
+      sunI:            +g('sunI').value,
+      camFOV:          +g('camFOV').value,
+      camY:            +g('camY').value,
+      camDist:         +g('camDist').value,
+      canvasH,
+      stackSpacing:    +g('stackSpacing').value,
+      flatSpacingVal,
+      standSpacingVal,
+      syncW:           g('syncW').checked,
+      syncH:           g('syncH').checked,
+      syncD:           g('syncD').checked,
+      ry, rx,
+    },
+    tile0Flat:        tile0FlatCfg  ? {...tile0FlatCfg}  : snapCfgFromPanel(),
+    tile0Stand:       tile0StandCfg ? {...tile0StandCfg} : null,
+    extraTiles:       standingMode ? [] : extraTiles.map(et => ({...et.cfg})),
+    standExtraTiles:  standingMode ? extraTiles.map(et => ({...et.cfg})) : savedStandExtraCfgs,
+    activeTileIdx,
+  };
+}
+
+// ── Apply full config to app ──────────────────────────────────────────
+function applyFullConfig(data){
+  if(!data || !data.scene || !data.tile0Flat) return alert('Invalid config file.');
+  const s = data.scene;
+
+  // 1. Scene controls
+  g('autoOn').checked   = !!s.autoOn;
+  g('autoSpeed').value  = s.autoSpeed;  g('autoSpeedV').textContent  = s.autoSpeed;
+  g('ambientI').value   = s.ambientI;   g('ambientIV').textContent   = parseFloat(s.ambientI).toFixed(2);
+  g('sunI').value       = s.sunI;       g('sunIV').textContent       = parseFloat(s.sunI).toFixed(2);
+  g('camFOV').value     = s.camFOV;     g('camFOVV').textContent     = s.camFOV;
+  g('camY').value       = s.camY;       g('camYV').textContent       = parseFloat(s.camY).toFixed(1);
+  g('camDist').value    = s.camDist;    g('camDistV').textContent    = s.camDist;
+  // Canvas height
+  if(s.canvasH !== undefined){
+    canvasH = s.canvasH;
+    g('canvasHeight').value = canvasH;
+    g('canvasHeightV').textContent = canvasH;
+    const sz = viewSz();
+    renderer.setSize(sz.w, sz.h);
+    camera.aspect = sz.w / sz.h;
+    camera.updateProjectionMatrix();
+  }
+  g('stackSpacing').value = s.stackSpacing; g('stackSpacingV').textContent = parseFloat(s.stackSpacing).toFixed(2);
+  flatSpacingVal  = s.flatSpacingVal  !== undefined ? s.flatSpacingVal  : s.stackSpacing;
+  standSpacingVal = s.standSpacingVal !== undefined ? s.standSpacingVal : s.stackSpacing;
+  g('syncW').checked    = !!s.syncW;
+  g('syncH').checked    = !!s.syncH;
+  g('syncD').checked    = !!s.syncD;
+  ambient.intensity     = s.ambientI;
+  sun.intensity         = s.sunI;
+  // Restore rotation state
+  if(s.ry !== undefined) ry = s.ry;
+  if(s.rx !== undefined) rx = s.rx;
+
+  // 2. Restore tile0 cfg stores
+  tile0FlatCfg  = data.tile0Flat  ? {...data.tile0Flat}  : null;
+  tile0StandCfg = data.tile0Stand ? {...data.tile0Stand} : snapCfgFromPanel();
+
+  // 3. Remove all existing extra tiles
+  while(extraTiles.length > 0){ const et = extraTiles.pop(); scene.remove(et.grp); }
+  activeTileIdx = 0;
+  savedFlatExtraCfgs  = [];
+  savedStandExtraCfgs = [];
+
+  // 4. Switch orientation mode
+  standingMode = !!s.standingMode;
+  if(standingMode){
+    g('btnStand').classList.add('active');
+    g('btnFlat').classList.remove('active');
+    loadCfgToPanel(tile0StandCfg);
+    buildStandTile();
+    // Restore standing extra tiles
+    if(data.standExtraTiles && data.standExtraTiles.length > 0){
+      data.standExtraTiles.forEach((cfg, i) => {
+        const xWorld = (i + 1) * getStandStep();
+        const et = buildExtraStandTile(cfg, xWorld, i);
+        et.grp.position.x = xWorld;
+        et.grp.rotation.x = group.rotation.x;
+        et.grp.rotation.y = group.rotation.y;
+        extraTiles.push(et);
+      });
+    }
+    repositionStandExtras();
+    showStackControls(true);
+  } else {
+    g('btnFlat').classList.add('active');
+    g('btnStand').classList.remove('active');
+    loadCfgToPanel(tile0FlatCfg);
+    buildFlatTile();
+    // Restore flat extra tiles
+    if(data.extraTiles && data.extraTiles.length > 0){
+      data.extraTiles.forEach((cfg, i) => {
+        const step = getStep();
+        const yWorld = -(i + 1) * step;
+        const et = buildExtraTile(cfg, yWorld, i);
+        et.grp.position.y = yWorld;
+        et.grp.rotation.x = group.rotation.x;
+        et.grp.rotation.y = group.rotation.y;
+        extraTiles.push(et);
+      });
+    }
+    repositionExtras();
+    showStackControls(true);
+  }
+  updateStackUI();
+  updateStackPanelLabels();
+  updateCamera();
+  setStackOutline(data.activeTileIdx || 0);
+  activeTileIdx = data.activeTileIdx || 0;
+}
+
+// ── Export JSON ───────────────────────────────────────────────────────
+g('exportBtn').addEventListener('click', () => {
+  const data = buildFullConfig();
+  const json = JSON.stringify(data, null, 2);
+  const blob = new Blob([json], {type: 'application/json'});
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href     = url;
+  a.download = '3dtile-model.json';
+  a.click();
+  URL.revokeObjectURL(url);
+});
+
+// ── Import JSON ───────────────────────────────────────────────────────
+g('importBtn').addEventListener('click', () => {
+  g('importFile').value = ''; // reset so same file can be re-imported
+  g('importFile').click();
+});
+g('importFile').addEventListener('change', e => {
+  const file = e.target.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = evt => {
+    try {
+      const data = JSON.parse(evt.target.result);
+      applyFullConfig(data);
+    } catch(err) {
+      alert('Failed to parse JSON config: ' + err.message);
+    }
+  };
+  reader.readAsText(file);
+});
+
+window.addEventListener('resize', () => {
+  const s = viewSz();
+  renderer.setSize(s.w, s.h);
+  camera.aspect = s.w / s.h;
+  camera.updateProjectionMatrix();
+});
+
+// ── Set as Default ────────────────────────────────────────────────────
+g('setDefaultBtn').addEventListener('click', () => {
+  try {
+    const data = buildFullConfig();
+    localStorage.setItem('3dtile-default', JSON.stringify(data));
+    g('setDefaultBtn').textContent = '⭐ Saved!';
+    setTimeout(() => { g('setDefaultBtn').textContent = '⭐ Set as Default'; }, 1500);
+  } catch(e) {
+    alert('Could not save default: ' + e.message);
+  }
+});
+
+// ── Reset to Default ──────────────────────────────────────────────────
+g('resetDefaultBtn').addEventListener('click', () => {
+  if(!confirm('Clear saved default and restore factory settings?')) return;
+  localStorage.removeItem('3dtile-default');
+  // Factory reset: reload page (cleanest way to restore all JS state)
+  location.reload();
+});
+
+// ── Panel toggle & Tab switching ──────────────────────────────────────
+(function(){
+  const toggle = document.getElementById('panelToggle');
+  const panel  = document.getElementById('panel');
+  toggle.addEventListener('click', () => {
+    const isOpen = panel.classList.toggle('open');
+    toggle.classList.toggle('open', isOpen);
+    const s = viewSz();
+    renderer.setSize(s.w, s.h);
+    camera.aspect = s.w / s.h;
+    camera.updateProjectionMatrix();
+  });
+  document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+      btn.classList.add('active');
+      document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+    });
+  });
+})();
+
+// ══════════════════════════════════════════════════════════════════════
+//  MULTI-TILE STACK  (Flat mode only)
+//
+//  Strategy: completely independent from original single-tile code.
+//  - stackLookAtY: shared with updateCamera (declared as var to avoid TDZ)
+//  - extraTiles[]: additional tiles below tile-0 (tile-0 = original tileMesh)
+//  - Tile-0 is always the original group with buildFlatTile/rebuildFlatLabel
+//  - Extra tiles are separate THREE.Group objects added to scene
+//  - Clicking a tile loads its cfg into panel; saving back on deselect
+//  - +/- adds/removes the bottom extra tile
+// ══════════════════════════════════════════════════════════════════════
+
+var stackLookAtY = 4.5;   // var = no TDZ, safe to reference in updateCamera
+var standLookAtX = 0;     // var = no TDZ, safe to reference in updateCamera
+
+// ── Snap cfg from panel ───────────────────────────────────────────────
+function snapCfgFromPanel(){
+  const c = getCfg();  // reuse original getCfg()
+  return {
+    TW: fv('tileW'), TD: fv('tileD'), TH: fv('tileH'),
+    R: c.R, BS: c.BS,
+    colorTop: g('colorTop').value, colorSide: g('colorSide').value,
+    rough: fv('rough'), metal: fv('metal'),
+    txtContent: g('txtContent').value,
+    txtColor: g('txtColor').value, txtSize: fv('txtSize'),
+    txtWeight: g('txtWeight').value, txtFont: g('txtFont').value,
+    txtAlign: g('txtAlign').value, txtStyle: g('txtStyle').value,
+    txtDepth: fv('txtDepth'),
+    txtHighlight: g('txtHighlight').value,
+    txtShadowColor: g('txtShadowColor').value,
+    lblW: c.lblW, lblH: c.lblH, lblX: c.lblX, lblZ: c.lblZ,
+    lblWPct: fv('lblWPct'), lblHPct: fv('lblHPct'),
+    lblXraw: fv('lblX'), lblZraw: fv('lblZ'),
+  };
+}
+
+// ── Write cfg to panel ────────────────────────────────────────────────
+function loadCfgToPanel(c){
+  function sv(id, val){
+    const el = g(id); if(!el) return;
+    el.value = val;
+    const outMap = {tileW:'tileWV',tileD:'tileDV',tileH:'tileHV',
+      cornerR:'cornerRV',bevelS:'bevelSV',rough:'roughV',metal:'metalV',
+      txtSize:'txtSizeV',txtDepth:'txtDepthV',lblX:'lblXV',lblZ:'lblZV',
+      lblWPct:'lblWPctV',lblHPct:'lblHPctV'};
+    if(outMap[id]){
+      const out = g(outMap[id]);
+      if(out) out.textContent = id==='lblWPct'||id==='lblHPct'
+        ? val+'%' : parseFloat(val).toFixed(id==='tileW'||id==='tileD'?1:id==='tileH'||id==='cornerR'||id==='bevelS'||id==='rough'||id==='metal'?2:0);
+    }
+  }
+  sv('tileW', c.TW); sv('tileD', c.TD); sv('tileH', c.TH);
+  sv('cornerR', c.R); sv('bevelS', c.BS);
+  sv('rough', c.rough); sv('metal', c.metal);
+  sv('txtSize', c.txtSize); sv('txtDepth', c.txtDepth);
+  sv('lblX', c.lblXraw||0); sv('lblZ', c.lblZraw||0);
+  sv('lblWPct', c.lblWPct); sv('lblHPct', c.lblHPct);
+  g('colorTop').value = c.colorTop;   g('colorTopV').textContent  = c.colorTop;
+  g('colorSide').value = c.colorSide; g('colorSideV').textContent = c.colorSide;
+  g('txtContent').value = c.txtContent;
+  g('txtColor').value = c.txtColor;     g('txtColorV').textContent     = c.txtColor;
+  g('txtHighlight').value = c.txtHighlight; g('txtHighlightV').textContent = c.txtHighlight;
+  g('txtShadowColor').value = c.txtShadowColor; g('txtShadowColorV').textContent = c.txtShadowColor;
+  g('txtWeight').value = c.txtWeight;
+  g('txtFont').value   = c.txtFont;
+  g('txtAlign').value  = c.txtAlign;
+  g('txtStyle').value  = c.txtStyle;
+}
+
+// ── Build one extra tile at world Y offset ────────────────────────────
+function buildExtraTile(cfg, yWorld, idx){
+  const grp = new THREE.Group();
+  grp.rotation.order = group.rotation.order;
+  scene.add(grp);
+
+  const hw = cfg.TW/2, hd = cfg.TD/2;
+  const R  = Math.min(cfg.R,  cfg.TW/2*0.9, cfg.TD/2*0.9);
+  const BS = Math.min(cfg.BS, R*0.8);
+
+  const geo = new THREE.ExtrudeGeometry(makeShape(hw, hd, R), {
+    depth: cfg.TH, bevelEnabled: BS > 0.001,
+    bevelThickness: BS, bevelSize: BS, bevelSegments: 10
+  });
+  geo.rotateX(-Math.PI / 2);
+  geo.computeBoundingBox();
+  geo.translate(0, -geo.boundingBox.min.y, 0);
+  geo.computeBoundingBox();
+
+  const sRef = idx + 1; // stencil ref: 1..4, unique per extra tile
+
+  // Plain tile body — no stencil, renders normally
+  const tMat = new THREE.MeshStandardMaterial({color:cfg.colorTop, roughness:cfg.rough, metalness:cfg.metal});
+  const sMat = new THREE.MeshStandardMaterial({color:cfg.colorSide, roughness:cfg.rough+0.07, metalness:cfg.metal});
+  const mesh = new THREE.Mesh(geo, [tMat, sMat]);
+  grp.add(mesh);
+
+  // ── Invisible mask plane ──────────────────────────────────────────────
+  // Covers the top face. depthTest:true + renderOrder:9 means it renders
+  // AFTER tile 0 (default renderOrder:0). Where tile 0 is in front, the
+  // depth test FAILS so no stencil is written there. Where the top face is
+  // genuinely visible, the depth test PASSES and raw WebGL writes sRef into
+  // the stencil buffer via onBeforeRender/onAfterRender.
+  const maskGeo = new THREE.PlaneGeometry(cfg.TW, cfg.TD);
+  const maskMat = new THREE.MeshBasicMaterial({
+    colorWrite: false, depthWrite: false, depthTest: true
+  });
+  const maskMesh = new THREE.Mesh(maskGeo, maskMat);
+  maskMesh.renderOrder = 9;
+  maskMesh.rotation.x  = -Math.PI / 2;
+  maskMesh.position.set(0, geo.boundingBox.max.y + 0.001, 0);
+  maskMesh.onBeforeRender = function(renderer){
+    const gl = renderer.getContext();
+    gl.enable(gl.STENCIL_TEST);
+    gl.stencilMask(0xff);
+    gl.stencilFunc(gl.ALWAYS, sRef, 0xff);
+    gl.stencilOp(gl.KEEP, gl.KEEP, gl.REPLACE);
+  };
+  maskMesh.onAfterRender = function(renderer){
+    const gl = renderer.getContext();
+    // restore stencil to neutral state — keep STENCIL_TEST enabled
+    // so Three.js material stencil on the label still works
+    gl.stencilMask(0x00);
+    gl.stencilFunc(gl.ALWAYS, 0, 0xff);
+    gl.stencilOp(gl.KEEP, gl.KEEP, gl.KEEP);
+  };
+  grp.add(maskMesh);
+
+  // Label — reads stencil via raw GL, only draws where mask wrote sRef
+  const lGeo = new THREE.PlaneGeometry(cfg.lblW, cfg.lblH);
+  const lMat = new THREE.MeshBasicMaterial({
+    map: makeTextCanvas(cfg), transparent:true, depthTest:false, depthWrite:false, alphaTest:0.01
+  });
+  const lMesh = new THREE.Mesh(lGeo, lMat);
+  lMesh.renderOrder = 10;
+  lMesh.rotation.x  = -Math.PI/2;
+  lMesh.position.set(cfg.lblX, geo.boundingBox.max.y + 0.002, cfg.lblZ);
+  lMesh.onBeforeRender = function(renderer){
+    const gl = renderer.getContext();
+    gl.enable(gl.STENCIL_TEST);
+    gl.stencilMask(0x00);                          // no writes
+    gl.stencilFunc(gl.EQUAL, sRef, 0xff);          // only draw where stencil == sRef
+    gl.stencilOp(gl.KEEP, gl.KEEP, gl.KEEP);
+  };
+  lMesh.onAfterRender = function(renderer){
+    const gl = renderer.getContext();
+    gl.disable(gl.STENCIL_TEST);
+    gl.stencilMask(0xff);
+  };
+  grp.add(lMesh);
+
+  // Outline for selection
+  const eMat  = new THREE.LineBasicMaterial({color:0x00ccff, transparent:true, opacity:0});
+  const eMesh = new THREE.LineSegments(new THREE.EdgesGeometry(geo), eMat);
+  eMesh.renderOrder = 2;
+  grp.add(eMesh);
+
+  return {grp, tileMesh:mesh, labelMesh:lMesh, maskMesh, outlineMesh:eMesh, topMat:tMat, sideMat:sMat, cfg, tileH: geo.boundingBox.max.y, yWorld};
+}
+
+// ── Get step size (tile height + spacing) ────────────────────────────
+function getStep(){
+  const tileH = tileMesh ? (() => {
+    tileMesh.geometry.computeBoundingBox();
+    return tileMesh.geometry.boundingBox.max.y;
+  })() : 0.81;
+  return tileH + (isNaN(fv('stackSpacing')) ? 0.8 : fv('stackSpacing'));
+}
+
+// ── Reposition all extra tiles and update camera lookAt ───────────────
+function repositionExtras(){
+  const step = getStep();
+  extraTiles.forEach((et, i) => {
+    const y = -(i + 1) * step;
+    et.grp.position.y = y;
+    et.yWorld = y;
+  });
+  // Update lookAt: center of stack
+  const n = 1 + extraTiles.length;
+  const step2 = getStep();
+  const topY  = 0;
+  const botY  = -(n - 1) * step2;
+  const midY  = (topY + botY) / 2;
+  stackLookAtY = midY + 0.4;
+  camera.lookAt(0, stackLookAtY, 0);
+}
+
+// ── Sync extra tile group rotation with main group every frame ────────
+// Extra tiles are in scene (not in group) so we copy rotation manually
+const _origLoop = null; // we hook into the existing render loop below
+
+// ── Selection outline ─────────────────────────────────────────────────
+function setStackOutline(idx){
+  // idx 0 = original tile (no outline mesh on it yet — handled separately)
+  // idx 1+ = extraTiles[idx-1]
+  extraTiles.forEach((et, i) => {
+    et.outlineMesh.material.opacity = (i + 1 === idx) ? 0.7 : 0;
+  });
+  g('tileIndicator').textContent = 'TILE ' + (idx + 1);
+}
+
+// ── Select a tile ─────────────────────────────────────────────────────
+function selectTile(idx){
+  if(idx === activeTileIdx) return;
+  // Save panel state back to current active tile's cfg store
+  if(activeTileIdx === 0){
+    if(standingMode) tile0StandCfg = snapCfgFromPanel();
+    else             tile0FlatCfg  = snapCfgFromPanel();
+  } else {
+    extraTiles[activeTileIdx - 1].cfg = snapCfgFromPanel();
+  }
+  activeTileIdx = idx;
+  if(idx === 0){
+    // Restore tile 0's own cfg into panel, then rebuild its label
+    if(standingMode){ loadCfgToPanel(tile0StandCfg); rebuildStandLabel(); }
+    else             { loadCfgToPanel(tile0FlatCfg);  rebuildFlatLabel(); }
+  } else {
+    // Load selected extra tile's cfg into panel for editing
+    loadCfgToPanel(extraTiles[idx - 1].cfg);
+  }
+  setStackOutline(idx);
+}
+
+// ── Raycaster for tile click ──────────────────────────────────────────
+const _raycaster = new THREE.Raycaster();
+const _mouse     = new THREE.Vector2();
+
+cv.addEventListener('click', e => {
+  if(extraTiles.length === 0) return;
+  const rect = cv.getBoundingClientRect();
+  _mouse.x =  ((e.clientX - rect.left) / rect.width)  * 2 - 1;
+  _mouse.y = -((e.clientY - rect.top)  / rect.height) * 2 + 1;
+  _raycaster.setFromCamera(_mouse, camera);
+  // Check extra tiles first
+  for(let i = 0; i < extraTiles.length; i++){
+    const hits = _raycaster.intersectObject(extraTiles[i].tileMesh);
+    if(hits.length > 0){ selectTile(i + 1); return; }
+  }
+  // Check tile 0
+  if(tileMesh){
+    const hits = _raycaster.intersectObject(tileMesh);
+    if(hits.length > 0){ selectTile(0); }
+  }
+});
+
+// ── Sync extra tile rotations with main group in render loop ──────────
+// Hook: wrap the existing render loop by monkey-patching renderer.render
+const _origRender = renderer.render.bind(renderer);
+renderer.render = function(scene, camera){
+  // Sync extra tile group rotations to match main group
+  extraTiles.forEach(et => {
+    et.grp.rotation.x = group.rotation.x;
+    et.grp.rotation.y = group.rotation.y;
+    et.grp.rotation.z = group.rotation.z;
+  });
+  _origRender(scene, camera);
+};
+
+// ── Add tile ──────────────────────────────────────────────────────────
+function addTile(){
+  if(extraTiles.length >= 4) return; // max 5 total (tile0 + 4 extra)
+  // Copy cfg from bottom-most tile
+  const srcCfg = extraTiles.length === 0
+    ? snapCfgFromPanel()
+    : {...extraTiles[extraTiles.length - 1].cfg};
+  const step = getStep();
+  const yWorld = -(extraTiles.length + 1) * step;
+  const et = buildExtraTile(srcCfg, yWorld, extraTiles.length);
+  et.grp.position.y = yWorld;
+  // Sync rotation immediately
+  et.grp.rotation.x = group.rotation.x;
+  et.grp.rotation.y = group.rotation.y;
+  extraTiles.push(et);
+  repositionExtras();
+  updateStackUI();
+}
+
+// ── Remove tile ───────────────────────────────────────────────────────
+function removeTile(){
+  if(extraTiles.length === 0) return;
+  const et = extraTiles.pop();
+  scene.remove(et.grp);
+  if(activeTileIdx > extraTiles.length){
+    activeTileIdx = extraTiles.length;
+    if(activeTileIdx > 0) loadCfgToPanel(extraTiles[activeTileIdx-1].cfg);
+  }
+  setStackOutline(activeTileIdx);
+  repositionExtras();
+  updateStackUI();
+}
+
+// ── Update button states ──────────────────────────────────────────────
+function updateStackUI(){
+  g('btnAddTile').disabled = extraTiles.length >= 4;
+  g('btnRemTile').disabled = extraTiles.length === 0;
+}
+
+// ── Show/hide stack controls based on mode ────────────────────────────
+function showStackControls(show){
+  const d = show ? 'flex' : 'none';
+  g('stackBtns').style.display       = d;
+  g('tileIndicator').style.display   = show ? 'block' : 'none';
+}
+
+// ── Sync extra tiles dimensions to tile 0 (Flat mode) ────────────────
+function syncExtraTilesToTile0(){
+  if(standingMode || extraTiles.length === 0) return;
+  const doW = g('syncW').checked;
+  const doH = g('syncH').checked;
+  const doD = g('syncD').checked;
+  if(!doW && !doH && !doD) return;
+  // Always read tile 0's values from its cfg store, NOT from the panel
+  // (panel may be showing an extra tile's cfg when one is selected)
+  const t0 = tile0FlatCfg;
+  if(!t0) return;
+  extraTiles.forEach((et, i) => {
+    if(doW) et.cfg.TW = t0.TW;
+    if(doH) et.cfg.TH = t0.TH;
+    if(doD) et.cfg.TD = t0.TD;
+    // Always silently sync these when any sync is active — only colors stay independent
+    et.cfg.R     = t0.R;
+    et.cfg.BS    = t0.BS;
+    et.cfg.rough = t0.rough;
+    et.cfg.metal = t0.metal;
+    const yWorld = et.grp.position.y;
+    const rx_ = et.grp.rotation.x, ry_ = et.grp.rotation.y, rz_ = et.grp.rotation.z;
+    scene.remove(et.grp);
+    const newEt = buildExtraTile(et.cfg, yWorld, i);
+    newEt.grp.position.y = yWorld;
+    newEt.grp.rotation.x = rx_;
+    newEt.grp.rotation.y = ry_;
+    newEt.grp.rotation.z = rz_;
+    extraTiles[i] = newEt;
+  });
+  setStackOutline(activeTileIdx);
+  repositionExtras();
+}
+
+// ── Sync toggle listeners — apply immediately when switched on ────────
+['syncW','syncH','syncD'].forEach(id => {
+  g(id).addEventListener('change', () => {
+    if(g(id).checked) syncExtraTilesToTile0();
+  });
+});
+
+// ── Spacing slider (mode-aware) ───────────────────────────────────────
+g('stackSpacing').addEventListener('input', () => {
+  g('stackSpacingV').textContent = parseFloat(g('stackSpacing').value).toFixed(2);
+  if(standingMode) repositionStandExtras();
+  else             repositionExtras();
+});
+
+// ── +/- buttons ───────────────────────────────────────────────────────
+g('btnAddTile').addEventListener('click', () => { pauseAuto(); if(standingMode) addStandTile(); else addTile(); });
+g('btnRemTile').addEventListener('click', () => { pauseAuto(); if(standingMode) removeStandTile(); else removeTile(); });
+
+// ── Initial setup ─────────────────────────────────────────────────────
+// Initialise tile-0 cfg stores now that snapCfgFromPanel is defined
+tile0FlatCfg  = snapCfgFromPanel();
+tile0StandCfg = snapCfgFromPanel();
+showStackControls(true);
+updateStackUI();
+updateStackPanelLabels();
+repositionExtras(); // sets initial stackLookAtY and calls camera.lookAt
+updateCamera();     // applies the new lookAt via the updated stackLookAtY
+
+// ══════════════════════════════════════════════════════════════════════
+//  MULTI-TILE STACK  (Standing mode)
+//
+//  Mirror of the Flat stack system, adapted for Standing mode:
+//  - Tiles are placed side-by-side along the X axis (not Y)
+//  - Each extra tile is offset by +X * step (tile width + spacing)
+//  - Tile 0 stays at X=0; extra tiles at X = +1*step, +2*step, …
+//  - Camera lookAt stays at (0,0,0) — tile face already centered
+//  - buildExtraStandTile mirrors buildExtraTile:
+//      same geometry as buildStandTile (no rotateX, centered around origin)
+//      stencil mask on front face (Z face) instead of top face (Y face)
+// ══════════════════════════════════════════════════════════════════════
+
+// ── Get step size for Standing (tile width + spacing) ─────────────────
+function getStandStep(){
+  // Read TW + bevel directly from panel — reliable regardless of tileMesh state.
+  // Full tile width = TW + 2*BS (bevel extends symmetrically on both X sides).
+  const TW = fv('tileW');
+  const R  = Math.min(fv('cornerR'), TW/2*0.9, fv('tileD')/2*0.9);
+  const BS = Math.min(fv('bevelS'), R*0.8);
+  const tileW = TW + 2 * BS;
+  const spacing = isNaN(fv('stackSpacing')) ? 0 : fv('stackSpacing');
+  return tileW + spacing;
+}
+
+// ── Reposition all Standing extra tiles ──────────────────────────────
+function repositionStandExtras(){
+  const step = getStandStep();
+  extraTiles.forEach((et, i) => {
+    const x = (i + 1) * step;
+    et.grp.position.x = x;
+    et.xWorld = x;
+  });
+  // Update lookAt: horizontal center of standing stack
+  const n      = 1 + extraTiles.length;
+  const leftX  = 0;
+  const rightX = (n - 1) * step;
+  standLookAtX = (leftX + rightX) / 2;
+  camera.lookAt(standLookAtX, 0, 0);
+}
+
+// ── Build one Standing extra tile at world X offset ───────────────────
+function buildExtraStandTile(cfg, xWorld, idx){
+  const grp = new THREE.Group();
+  grp.rotation.order = group.rotation.order;
+  scene.add(grp);
+
+  const hw = cfg.TW/2, hd = cfg.TD/2;
+  const R  = Math.min(cfg.R,  cfg.TW/2*0.9, cfg.TD/2*0.9);
+  const BS = Math.min(cfg.BS, R*0.8);
+
+  // Same geometry as buildStandTile: shape in XY, extrude along Z, center it
+  const geo = new THREE.ExtrudeGeometry(makeShape(hw, hd, R), {
+    depth: cfg.TH, bevelEnabled: BS > 0.001,
+    bevelThickness: BS, bevelSize: BS, bevelSegments: 10
+  });
+  geo.computeBoundingBox();
+  const cY = (geo.boundingBox.max.y + geo.boundingBox.min.y) / 2;
+  const cZ = (geo.boundingBox.max.z + geo.boundingBox.min.z) / 2;
+  geo.translate(0, -cY, -cZ);
+  geo.computeBoundingBox();
+
+  const sRef = idx + 1; // stencil ref: 1..4, unique per extra tile
+
+  // Tile body
+  const tMat = new THREE.MeshStandardMaterial({color:cfg.colorTop,  roughness:cfg.rough,       metalness:cfg.metal});
+  const sMat = new THREE.MeshStandardMaterial({color:cfg.colorSide, roughness:cfg.rough + 0.07, metalness:cfg.metal});
+  const mesh = new THREE.Mesh(geo, [tMat, sMat]);
+  grp.add(mesh);
+
+  // ── Invisible mask using full tile geometry ───────────────────────────
+  // A PlaneGeometry only covers the front face. Using the full tile geo
+  // ensures the stencil is written for ALL visible faces (front, sides, top,
+  // bottom) so the label of a tile behind cannot bleed through any face.
+  const maskGeo = geo.clone();
+  const maskMat = new THREE.MeshBasicMaterial({
+    colorWrite: false, depthWrite: false, depthTest: true
+  });
+  const maskMesh = new THREE.Mesh(maskGeo, maskMat);
+  maskMesh.renderOrder = 9;
+  maskMesh.onBeforeRender = function(renderer){
+    const gl = renderer.getContext();
+    gl.enable(gl.STENCIL_TEST);
+    gl.stencilMask(0xff);
+    gl.stencilFunc(gl.ALWAYS, sRef, 0xff);
+    gl.stencilOp(gl.KEEP, gl.KEEP, gl.REPLACE);
+  };
+  maskMesh.onAfterRender = function(renderer){
+    const gl = renderer.getContext();
+    gl.stencilMask(0x00);
+    gl.stencilFunc(gl.ALWAYS, 0, 0xff);
+    gl.stencilOp(gl.KEEP, gl.KEEP, gl.KEEP);
+  };
+  grp.add(maskMesh);
+
+  // Label — reads stencil, only draws where mask wrote sRef
+  const lGeo = new THREE.PlaneGeometry(cfg.lblW, cfg.lblH);
+  const lMat = new THREE.MeshBasicMaterial({
+    map: makeTextCanvas(cfg), transparent:true, depthTest:false, depthWrite:false, alphaTest:0.01
+  });
+  const lMesh = new THREE.Mesh(lGeo, lMat);
+  lMesh.renderOrder = 10;
+  // rotation (0,0,0): normal = +Z toward camera, up = +Y — text upright ✓
+  lMesh.position.set(cfg.lblX, cfg.lblZ, geo.boundingBox.max.z + 0.002);
+  lMesh.onBeforeRender = function(renderer){
+    const gl = renderer.getContext();
+    gl.enable(gl.STENCIL_TEST);
+    gl.stencilMask(0x00);
+    gl.stencilFunc(gl.EQUAL, sRef, 0xff);
+    gl.stencilOp(gl.KEEP, gl.KEEP, gl.KEEP);
+  };
+  lMesh.onAfterRender = function(renderer){
+    const gl = renderer.getContext();
+    gl.disable(gl.STENCIL_TEST);
+    gl.stencilMask(0xff);
+  };
+  grp.add(lMesh);
+
+  // Outline for selection
+  const eMat  = new THREE.LineBasicMaterial({color:0x00ccff, transparent:true, opacity:0});
+  const eMesh = new THREE.LineSegments(new THREE.EdgesGeometry(geo), eMat);
+  eMesh.renderOrder = 2;
+  grp.add(eMesh);
+
+  return {grp, tileMesh:mesh, labelMesh:lMesh, maskMesh, outlineMesh:eMesh, topMat:tMat, sideMat:sMat, cfg, xWorld};
+}
+
+// ── Sync Standing extra tiles dimensions to tile 0 ────────────────────
+function syncStandExtraTilesToTile0(){
+  if(!standingMode || extraTiles.length === 0) return;
+  const doW = g('syncW').checked;
+  const doH = g('syncH').checked;
+  const doD = g('syncD').checked;
+  if(!doW && !doH && !doD) return;
+  const t0 = tile0StandCfg;
+  if(!t0) return;
+  extraTiles.forEach((et, i) => {
+    if(doW) et.cfg.TW = t0.TW;
+    if(doH) et.cfg.TD = t0.TD;
+    if(doD) et.cfg.TH = t0.TH;
+    // Always silently sync material props
+    et.cfg.R     = t0.R;
+    et.cfg.BS    = t0.BS;
+    et.cfg.rough = t0.rough;
+    et.cfg.metal = t0.metal;
+    const xWorld = et.grp.position.x;
+    const rx_ = et.grp.rotation.x, ry_ = et.grp.rotation.y, rz_ = et.grp.rotation.z;
+    scene.remove(et.grp);
+    const newEt = buildExtraStandTile(et.cfg, xWorld, i);
+    newEt.grp.position.x = xWorld;
+    newEt.grp.rotation.x = rx_;
+    newEt.grp.rotation.y = ry_;
+    newEt.grp.rotation.z = rz_;
+    extraTiles[i] = newEt;
+  });
+  setStackOutline(activeTileIdx);
+  repositionStandExtras();
+}
+
+// ── Add Standing tile ─────────────────────────────────────────────────
+function addStandTile(){
+  if(extraTiles.length >= 4) return;
+  const srcCfg = extraTiles.length === 0
+    ? snapCfgFromPanel()
+    : {...extraTiles[extraTiles.length - 1].cfg};
+  const step   = getStandStep();
+  const xWorld = (extraTiles.length + 1) * step;
+  const et = buildExtraStandTile(srcCfg, xWorld, extraTiles.length);
+  et.grp.position.x = xWorld;
+  et.grp.rotation.x = group.rotation.x;
+  et.grp.rotation.y = group.rotation.y;
+  extraTiles.push(et);
+  repositionStandExtras();
+  updateStackUI();
+}
+
+// ── Remove Standing tile ──────────────────────────────────────────────
+function removeStandTile(){
+  if(extraTiles.length === 0) return;
+  const et = extraTiles.pop();
+  scene.remove(et.grp);
+  if(activeTileIdx > extraTiles.length){
+    activeTileIdx = extraTiles.length;
+    if(activeTileIdx > 0) loadCfgToPanel(extraTiles[activeTileIdx-1].cfg);
+  }
+  setStackOutline(activeTileIdx);
+  repositionStandExtras();
+  updateStackUI();
+}
+
+// ── Sync toggle listeners for Standing ───────────────────────────────
+// The existing ['syncW','syncH','syncD'] listeners call syncExtraTilesToTile0
+// which already guards for standingMode. Add standing sync call here.
+['syncW','syncH','syncD'].forEach(id => {
+  g(id).addEventListener('change', () => {
+    if(g(id).checked && standingMode) syncStandExtraTilesToTile0();
+  });
+});
+
+// ── Auto-restore saved default on page load ───────────────────────────
+(function(){
+  try {
+    const saved = localStorage.getItem('3dtile-default');
+    if(saved){
+      const data = JSON.parse(saved);
+      applyFullConfig(data);
+    }
+  } catch(e) {
+    // Silently ignore corrupt stored default
+    localStorage.removeItem('3dtile-default');
+  }
+})();
+</script>
 </body>
 </html>
